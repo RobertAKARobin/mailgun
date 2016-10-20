@@ -3,9 +3,9 @@ var mailgun = require("mailgun-js");
 var env = require("./env.json");
 
 var app = express();
-var mailer = mailgun.client({
-	username: "api",
-	key: env.api_key
+var mailer = mailgun({
+	apiKey: env.api_key,
+	domain: env.domain
 });
 
 app.get("/", function(req, res){
@@ -19,7 +19,7 @@ app.get("/send", function(req, res){
 		subject: "Test1",
 		text: "It is " + Date.now()
 	};
-	mailer.send(data, function(error, body){
+	mailer.messages().send(data, function(error, body){
 		console.log(arguments);
 	});
 	res.send("poot");
