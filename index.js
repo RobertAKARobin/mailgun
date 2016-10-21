@@ -1,6 +1,7 @@
 var express = require("express");
 var mailgun = require("mailgun-js");
 var bodyParser = require("body-parser");
+var request = require("request");
 var env = require("./env.json");
 
 var app = express();
@@ -21,20 +22,30 @@ app.get("/", function(req, res){
   res.send("Not much here.");
 });
 
-app.post("/send", function(req, res){
-  var contact = req.body.contact,
-    attachment,
-    data;
-  if(!contact.email){
-    return err("Please include an e-mail address.");
-  }
-  try{
-    attachment = new mailer.Attachment({
+app.post("/send",
+  function validateEmail(req, res, next){
+    var contact = req.body.contact;
+    var params = {
+      url: "https://api.mailgun.net/v3/address/validate",
+      form: {
+        address: contact.email,
+        api_key: env.validation_key
+      }
+    }
+    request.get(params, function(error, response, body){
+      if(response.statusCode > 200){
+        return report(res, "Something's wrong with your email.");
+      }else next();
+    });
+  },
+  function prepEmail(req, res, next){
+    var contact = req.body.contact;
+    var attachment = new mailer.Attachment({
       data: new Buffer(JSON.stringify(req.body, null, 2), "utf8"),
       filename: contact.email + ".json.txt",
       contentType: "text/plain"
     });
-    data = {
+    var data = {
       from: env.name + " <" + env.email + ">",
       to: contact.email,
       cc: env.email,
@@ -42,28 +53,29 @@ app.post("/send", function(req, res){
       text: "Hi " + (contact.name || "there") + "! Looks like you just submitted the form at robertakarobin.com/apps_a_la_carte. I'll respond as soon as I can!",
       attachment: attachment
     };
-  }catch(error){
-    return err("Something's weird with the data you sent.");
+    req.email = data;
+    next();
+  },
+  function send(req, res){
+    try{
+      mailer.messages().send(req.email, function(error, body){
+        if(error){
+          throw error;
+        }else{
+          res.send({success: true});
+        }
+      });
+    }catch(error){
+      return report(res, error);
+    }
   }
-  try{
-    mailer.messages().send(data, function(error, body){
-      if(error){
-        throw error;
-      }else{
-        res.send({success: true});
-      }
-    });
-  }catch(error){
-    return err(error);
-  }
-
-  function err(error){
-    console.log(error);
-    res.status(400).json({success:false, error: (error.message || error)});
-  }
-});
+);
 
 app.listen("3002", function(){
   console.log("Mailer is running.");
 });
 
+function report(res, error){
+  console.log(error);
+  res.status(400).json({success:false, error: (error.message || error)});
+}
