@@ -58,17 +58,15 @@ app.post("/send", function(req, res){
     text: "Hi " + (contact.name || "there") + "! Looks like you just submitted the form at robertakarobin.com/apps_a_la_carte. I'll respond as soon as I can!",
     attachment: attachment
   };
-  try{
-    mailer.messages().send(data, function(error, body){
-      if(error) throw error;
-      else res.send({success: true});
-    });
-  }catch(error){
-    res.json({success: false, error: "Something went wrong! Try again later."});
-  }
+  mailer.messages().send(data, function(error, body){
+    if(error){
+			res.json({success: false, error: "Something went wrong! Try again later."});
+		}else{
+			res.send({success: true});
+		}
+  });
 });
 
 app.listen("3002", function(){
   console.log("Mailer is running.");
 });
-
