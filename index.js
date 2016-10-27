@@ -5,7 +5,7 @@ var request = require("request");
 var env = require("./env.json");
 
 var app = express();
-var mailer = mailgun({
+var mailgun = mailgun({
   apiKey: env.api_key,
   domain: env.domain
 });
@@ -45,20 +45,16 @@ app.get("/", function(req, res){
 
 app.post("/send", function(req, res){
   var contact = req.body.contact;
-  var attachment = new mailer.Attachment({
-    data: new Buffer(JSON.stringify(req.body, null, 2), "utf8"),
-    filename: req.email + ".json.txt",
-    contentType: "text/plain"
-  });
+  var attachment = attach(req.email + ".json", req.body);
   var data = {
     from: env.name + " <" + env.email + ">",
     to: req.email,
     cc: env.email,
-    subject: "Apps a la Carte!",
-    text: "Hi " + (contact.name || "there") + "! Looks like you just submitted the form at robertakarobin.com/apps_a_la_carte. I'll respond as soon as I can!",
+    subject: "This is a test e-mail!",
+    text: "Hi " + (contact.name || "there") + "! This is an e-mail.",
     attachment: attachment
   };
-  mailer.messages().send(data, function(error, body){
+  mailgun.messages().send(data, function(error, body){
     if(error){
 			res.json({success: false, error: "Something went wrong! Try again later."});
 		}else{
@@ -70,3 +66,11 @@ app.post("/send", function(req, res){
 app.listen("3002", function(){
   console.log("Mailer is running.");
 });
+
+function attach(filename, text){
+	return new mailgun.Attachment({
+    data: new Buffer(JSON.stringify(text, null, 2), "utf8"),
+    filename: filename + ".txt",
+    contentType: "text/plain"
+  });
+}
