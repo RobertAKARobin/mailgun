@@ -2,6 +2,7 @@ var express = require("express");
 var mailgun = require("mailgun-js");
 var bodyParser = require("body-parser");
 var request = require("request");
+var querystring = require("querystring");
 var env = require("./env.json");
 
 var app = express();
@@ -10,6 +11,7 @@ var mailgun = mailgun({
   domain: env.domain
 });
 
+app.enable("trust proxy", true);
 app.use(bodyParser.json());
 app.use(function setHeaders(req, res, next){
   // res.setHeader("Access-Control-Allow-Origin", "http://localhost:8080");
@@ -18,7 +20,7 @@ app.use(function setHeaders(req, res, next){
   next();
 });
 app.use(function getEmail(req, res, next){
-  req.email = (req.query.email || (req.body.contact || {}).email);
+  req.email = (req.body.email || req.query.email || (req.body.contact || {}).email);
   next();
 });
 app.use(function validateEmail(req, res, next){
@@ -56,10 +58,38 @@ app.post("/send", function(req, res){
   };
   mailgun.messages().send(data, function(error, body){
     if(error){
-			res.json({success: false, error: "Something went wrong! Try again later."});
-		}else{
-			res.send({success: true});
-		}
+      res.json({success: false, error: "Something went wrong! Try again later."});
+    }else{
+      res.send({success: true});
+    }
+  });
+});
+
+app.post("/apps_a_la_carte", function(req, res){
+  var hs_context = {
+    hutk: req.body.hubspotutk,
+    ipAddress: req.headers['x-real-ip'] || req.connection.remoteAddress,
+    pageUrl: (req.headers.referrer || req.headers.referer),
+    pageName: "Apps a la Carte"
+  };
+  var postData = {
+    email: req.body.email,
+    firstname: req.body.firstname,
+    lastname: req.body.lastname,
+    description: req.body.description,
+    hs_context: JSON.stringify(hs_context)
+  };
+  var requestOptions = {
+    uri: "https://forms.hubspot.com/uploads/form/v2/" + env.hs.portalId + "/" + env.hs.formId,
+    form: postData,
+    method: "POST"
+  };
+  request.post(requestOptions, function(error, response, body){
+    if(error){
+      res.json({error: error.message});
+    }else{
+      res.json({success: true});
+    }
   });
 });
 
@@ -68,7 +98,7 @@ app.listen("3002", function(){
 });
 
 function attach(filename, text){
-	return new mailgun.Attachment({
+  return new mailgun.Attachment({
     data: new Buffer(JSON.stringify(text, null, 2), "utf8"),
     filename: filename + ".txt",
     contentType: "text/plain"
